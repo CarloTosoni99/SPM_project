@@ -32,10 +32,18 @@ void jacobi(std::vector<float>& a, std::vector<float>& b, std::vector<float>& x,
     std::cout << "entering the Jacobi method... " << std::endl;
 
     int k = 1;
+    bool stop = false;
+
     std::vector<float> xo = x;
 
 
-    std::barrier bar(nw, [&]() {k = k +1; xo = x;});
+    std::barrier bar(nw, [&]() {
+        if (ch_conv != 0) {
+            stop = compute_magnitude(std::ref(x), std::ref(xo), n) < tol;
+        }
+        k = k + 1;
+        xo = x;
+    });
 
     std::function<void(int)> parjac = [&](int thr_n){
 
@@ -49,13 +57,10 @@ void jacobi(std::vector<float>& a, std::vector<float>& b, std::vector<float>& x,
                 }
                 x[i] = (1/a[(n+1)*i])*(b[i]-val);
             }
-            if (ch_conv != 0)
-                std::cout << "don't read this line" << std::endl;
-            /*if (compute_magnitude(std::ref(x), std::ref(xo), n) < tol) {
-                std::cout << "condition for convergence is satisfied" << std::endl;
-                return x;
-            }*/
+
             bar.arrive_and_wait();
+            if (stop)
+                return;
         }
 
         return;
