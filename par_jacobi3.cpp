@@ -122,7 +122,7 @@ int main(int argc, char *argv[]) {
     };
 
 
-    std::vector<std::thread> tvec(1);
+    std::vector<std::thread> tvec(nw);
     for(int i=0; i < nw; i++) {
         tvec[i] = std::thread(extract_tasks, std::ref(ll), std::ref(cond), std::ref(task_queue),
                               std::ref(thr_fin[i]), std::ref(queue_filled[i]), std::ref(is_done), i);
