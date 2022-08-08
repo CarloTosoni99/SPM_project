@@ -102,7 +102,7 @@ int main(int argc, char *argv[]){
     int seed = std::stoul(argv[1]); //seed to generate random numbers
     int n = std::stoul(argv[2]); //linear system's dimension
     int n_iter = std::stoul(argv[3]); //maximum number of iterations
-    int ch_conv = std::stoul(argv[4]); //if it's 1 the programm will check the convergence of jacobi at each iteration, if it's 0 it will not
+    int ch_conv = std::stoul(argv[4]); //if it's 1 the program will check the convergence of jacobi at each iteration, if it's 0 it will not
     float tol = std::atof(argv[5]); //maximum tolerance for convergence, the program will use this value only if ch_conv ==
     int nw = std::stoul(argv[6]); //parallel degree
 
