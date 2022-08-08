@@ -19,10 +19,8 @@ int main(int argc, char *argv[]) {
     int seed = std::stoul(argv[1]); //seed to generate random numbers
     int n = std::stoul(argv[2]); //linear system's dimension
     int n_iter = std::stoul(argv[3]); //maximum number of iterations
-    //int ch_conv = std::stoul(argv[4]); //if it's 1 the programm will check the convergence of jacobi at each iteration, if it's 0 it will not
-    //float tol = std::atof(argv[5]); //maximum tolerance for convergence, the program will use this value only if ch_conv ==
-    int nw = std::stoul(argv[4]); //parallel degree //CAMBIA IL NUMERO SE RIMETTI LA CONVERGENZA
-    int csize = std::stoul(argv[5]); //chunks' size //CAMBIA IL NUMERO SE RIMETTI LA CONVERGENZA
+    int nw = std::stoul(argv[4]); //parallel degree 
+    int csize = std::stoul(argv[5]); //chunks' size 
 
 
     srand(seed);
@@ -56,6 +54,8 @@ int main(int argc, char *argv[]) {
         b[i] = lo + static_cast<float> (rand() / static_cast<float>(RAND_MAX/(hi-lo)));;
     }
 
+    
+    
     my_timer timer;
     timer.start_timer();
 
@@ -135,7 +135,6 @@ int main(int argc, char *argv[]) {
             std::unique_lock<std::mutex> locking(ll);
             for (int i = 0; i < num_chunk; i++) {
                 auto fx = std::bind(f, std::ref(x), std::ref(a), std::ref(b), std::ref(xo), std::ref(chunks[i]), n);
-                //std::cout << "main thread here, I'm pushing a task..." << std::endl;
                 task_queue.push_front(fx);
             }
             for(int i = 0; i < nw; i++)
@@ -157,7 +156,6 @@ int main(int argc, char *argv[]) {
             thr_fin[i] = false;
         }
 
-        //std::cout << "iteration number "<< k << " computed, ready for next iteration" << std::endl;
         k++;
         xo = x;
     }
@@ -168,10 +166,10 @@ int main(int argc, char *argv[]) {
 
     std::cout << "exited from main while" << std::endl;
 
-    //std::this_thread::sleep_for(2000ms);
 
     // optional to check the error
     /*
+    std::this_thread::sleep_for(2000ms);
     for(int i = 0; i < n; i++){
         float v = 0.0;
         for(int j = 0; j < n; j++){
