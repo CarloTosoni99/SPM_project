@@ -6,21 +6,21 @@
 #include <vector>
 #include <cmath>
 #include <condition_variable>
-#include <atomic>
 
 
 #include "my_timer.cpp"
 
-using namespace std::chrono_literals;
 
+
+using namespace std::chrono_literals;
 
 int main(int argc, char *argv[]) {
 
     int seed = std::stoul(argv[1]); //seed to generate random numbers
     int n = std::stoul(argv[2]); //linear system's dimension
     int n_iter = std::stoul(argv[3]); //maximum number of iterations
-    int nw = std::stoul(argv[4]); //parallel degree 
-    int csize = std::stoul(argv[5]); //chunks' size 
+    int nw = std::stoul(argv[4]); //parallel degree
+    int csize = std::stoul(argv[5]); //chunks' size
 
 
     srand(seed);
@@ -54,8 +54,8 @@ int main(int argc, char *argv[]) {
         b[i] = lo + static_cast<float> (rand() / static_cast<float>(RAND_MAX/(hi-lo)));;
     }
 
-    
-    
+
+
     my_timer timer;
     timer.start_timer();
 
@@ -73,18 +73,14 @@ int main(int argc, char *argv[]) {
     }
 
 
-    std::vector<std::atomic<bool>> thr_fin (nw);
-    for(int i = 0; i < nw; i++) {
-        thr_fin[i] = false;
-    }
-    std::vector<std::atomic<bool>> queue_filled (nw);
+    bool queue_filled [nw];
     for(int i = 0; i < nw; i++) {
         queue_filled[i] = false;
     }
-    std::atomic<bool> is_done;
-    is_done = false;
+    bool is_done = false;
 
-    auto f = [](std::vector<float>& x, std::vector<std::vector<float>>& a, std::vector<float>& b, std::vector<float>& xo, std::pair<int, int>& chunk, int n) {
+    auto f = [](std::vector<float>& x, std::vector<std::vector<float>>& a, std::vector<float>& b,
+                std::vector<float>& xo, std::pair<int, int>& chunk, int n) {
         for (int i = chunk.first; i < chunk.second; i++) {
             float val = 0.0;
             for (int j = 0; j < n; j++) {
@@ -96,27 +92,31 @@ int main(int argc, char *argv[]) {
     };
 
 
-    auto extract_tasks = [](std::mutex &ll, std::condition_variable &cond, std::deque<std::function<void()>> &task_queue, std::atomic<bool> &thr_fin,
-                            std::atomic<bool> &queue_filled, std::atomic<bool> &is_done, int num_thr) {
-        while(!is_done || !thr_fin) {
+    auto extract_tasks = [](std::mutex &ll, std::condition_variable &cond, std::deque<std::function<void()>> &task_queue,
+                            bool &queue_filled, bool &is_done, int num_thr) {
+        while(true) {
+            bool modified = false;
             std::function<void()> t = []() {return;};
             {
                 std::unique_lock<std::mutex> locking(ll);
-                //cond.wait(locking);
+                cond.wait(locking, [&]() {return queue_filled || is_done;});
                 if (!task_queue.empty()) {
-                    //std::cout << "worker here number " << num_thr << ", taking a task" << std::endl;
                     t = task_queue.back();
                     task_queue.pop_back();
                 }
                 else {
-                    //std::cout << "yoyo" << std::endl;
                     if (queue_filled) {
                         queue_filled = false;
-                        thr_fin = true;
+                        modified = true;
+                    }
+                    if(is_done) {
+                        return;
                     }
                 }
                 locking.unlock();
             }
+            if (modified)
+                cond.notify_all();
             t();
         }
     };
@@ -125,7 +125,7 @@ int main(int argc, char *argv[]) {
     std::vector<std::thread> tvec(nw);
     for(int i=0; i < nw; i++) {
         tvec[i] = std::thread(extract_tasks, std::ref(ll), std::ref(cond), std::ref(task_queue),
-                              std::ref(thr_fin[i]), std::ref(queue_filled[i]), std::ref(is_done), i);
+                              std::ref(queue_filled[i]), std::ref(is_done), i);
     }
 
     int k = 1;
@@ -143,28 +143,32 @@ int main(int argc, char *argv[]) {
         }
         cond.notify_one();
 
-        bool restart = false;
-        while (!restart) {
-            restart = true;
-            for(int i = 0; i < nw; i++) {
-                if (!thr_fin[i])
-                    restart = false;
-            }
-        }
 
-        for(int i = 0; i < nw; i++){
-            thr_fin[i] = false;
+        {
+            std::unique_lock<std::mutex> locking(ll);
+            cond.wait(locking, [&]() {
+                bool restart = true;
+                for(int i = 0; i < nw; i++){
+                    if (queue_filled[i]){
+                        restart = false;
+                        break;
+                    }
+                }
+                return restart;
+            });
+            locking.unlock();
         }
-
         k++;
         xo = x;
     }
-    for(int i = 0; i < nw; i++){
-        thr_fin[i] = true;
-    }
-    is_done = true;
 
-    std::cout << "exited from main while" << std::endl;
+    {
+        std::unique_lock<std::mutex> locking(ll);
+        is_done = true;
+        locking.unlock();
+        cond.notify_all();
+    }
+
 
 
     // optional to check the error
@@ -177,7 +181,8 @@ int main(int argc, char *argv[]) {
         }
         v = v - b[i];
         std::cout << "Error at row i " << v << std::endl;
-    }*/
+    }
+    */
 
     for(int i = 0; i < nw; i++) {
         tvec[i].join();
