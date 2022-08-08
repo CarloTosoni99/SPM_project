@@ -31,16 +31,17 @@ void jacobi(std::vector<float>& a, std::vector<float>& b, std::vector<float>& x,
     std::vector<float> num_vec(n, 0);
     std::vector<float> den_vec(n, 0);
 
-    std::barrier bar(nw, [&]() {
+    
+    std::barrier bar(nw, [&]() {return;});
+    std::barrier bar2(nw, [&]() {h = h * 2;});
+    
+    std::barrier bar3(nw, [&]() {
         stop = convergence(num_vec[0], den_vec[0], tol);
         k = k + 1;
         xo = x;
         h = 1;
     });
-
-    std::barrier bar2(nw, [&]() {return;});
-    std::barrier bar3(nw, [&]() {h = h * 2;});
-
+    
     std::function<void(int)> parjac = [&](int thr_n){
 
         while (k <= n_iter) {
@@ -55,7 +56,7 @@ void jacobi(std::vector<float>& a, std::vector<float>& b, std::vector<float>& x,
             }
 
 
-            bar2.arrive_and_wait();
+            bar.arrive_and_wait();
 
 
             if (ch_conv != 0) {
@@ -63,18 +64,18 @@ void jacobi(std::vector<float>& a, std::vector<float>& b, std::vector<float>& x,
                     num_vec[i] = (x[i] - xo[i])*(x[i] - xo[i]);
                     den_vec[i] = (x[i]*x[i]);
                 }
-                bar2.arrive_and_wait();
+                bar.arrive_and_wait();
 
                 while (h < n) {
                     for (int i = thr_n * (h*2); i + h < n; i += nw * (h*2)) {
                         num_vec[i] = num_vec[i] + num_vec[i + h];
                         den_vec[i] = den_vec[i] + den_vec[i + h];
                     }
-                    bar3.arrive_and_wait();
+                    bar2.arrive_and_wait();
                 }
             }
 
-            bar.arrive_and_wait();
+            bar3.arrive_and_wait();
             if (stop)
                 return;
 

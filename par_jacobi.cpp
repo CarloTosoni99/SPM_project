@@ -8,7 +8,7 @@
 #include "my_timer.cpp"
 
 
-float compute_magnitude(std::vector<float>& x, std::vector<float>& xo, int n) {
+float compute_norm(std::vector<float>& x, std::vector<float>& xo, int n) {
 
     float num = 0.0;
     for(int i = 0; i < n; i++) {
@@ -39,7 +39,7 @@ void jacobi(std::vector<float>& a, std::vector<float>& b, std::vector<float>& x,
 
     std::barrier bar(nw, [&]() {
         if (ch_conv != 0) {
-            stop = compute_magnitude(std::ref(x), std::ref(xo), n) < tol;
+            stop = compute_norm(std::ref(x), std::ref(xo), n) < tol;
         }
         k = k + 1;
         xo = x;

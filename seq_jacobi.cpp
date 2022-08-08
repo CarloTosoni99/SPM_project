@@ -6,10 +6,9 @@
 
 #include "my_timer.cpp"
 
-//using namespace std::chrono_literals;
 
 
-float compute_magnitude(std::vector<float>& x, std::vector<float>& xo, int n) {
+float compute_norm(std::vector<float>& x, std::vector<float>& xo, int n) {
 
     float num = 0.0;
     for(int i = 0; i < n; i++) {
@@ -43,7 +42,7 @@ void seq_jacobi(std::vector<float>& a, std::vector<float>& b, std::vector<float>
             x[i] = (1/a[(n+1)*i])*(b[i]-val);
         }
         if (ch_conv != 0)
-            if (compute_magnitude(std::ref(x), std::ref(xo), n) < tol) {
+            if (compute_norm(std::ref(x), std::ref(xo), n) < tol) {
                 std::cout << "condition for convergence is satisfied" << std::endl;
                 return;
             }
