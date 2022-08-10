@@ -10,14 +10,13 @@
 
 void jacobi(std::vector<float>& a, std::vector<float>& b, std::vector<float>& x, int n, int n_iter, float tol, int ch_conv, int nw) {
 
-    std::cout << "entering the Jacobi method... " << std::endl;
-
     int k = 1;
     int h = 1;
     bool stop = false;
 
     std::vector<float> xo = x;
 
+    // Verify if Jacobi converged
     std::function<bool(float, float, float)> convergence = [](float num, float den, float tol) {
         num = std::sqrt(num);
         den = std::sqrt(den);
@@ -31,10 +30,11 @@ void jacobi(std::vector<float>& a, std::vector<float>& b, std::vector<float>& x,
     std::vector<float> num_vec(n, 0);
     std::vector<float> den_vec(n, 0);
 
-    
+    // This barrier is required to wait all the threads at the end of each Jacobi iteration
     std::barrier bar(nw, [&]() {return;});
-    std::barrier bar2(nw, [&]() {h = h * 2;});
     
+    // These two barriers are required to parallelise the computations of the stopping criterion
+    std::barrier bar2(nw, [&]() {h = h * 2;});
     std::barrier bar3(nw, [&]() {
         stop = convergence(num_vec[0], den_vec[0], tol);
         k = k + 1;
@@ -42,10 +42,11 @@ void jacobi(std::vector<float>& a, std::vector<float>& b, std::vector<float>& x,
         h = 1;
     });
     
+    
+    // Parallel Jacobi method
     std::function<void(int)> parjac = [&](int thr_n){
 
         while (k <= n_iter) {
-            //std::cout << "this is thread " << thr_n << " i'm starting iter number " << k << std::endl;
             for (int i = thr_n; i < n; i += nw) {
                 float val = 0.0;
                 for (int j = 0; j < n; j++) {
@@ -55,10 +56,10 @@ void jacobi(std::vector<float>& a, std::vector<float>& b, std::vector<float>& x,
                 x[i] = (1/a[(n+1)*i])*(b[i]-val);
             }
 
-
+            // Waiting the other threads...
             bar.arrive_and_wait();
 
-
+            // Compute the stopping criterion in parallel if ch_conv == 1
             if (ch_conv != 0) {
                 for (int i = thr_n; i < n; i += nw) {
                     num_vec[i] = (x[i] - xo[i])*(x[i] - xo[i]);
@@ -74,7 +75,7 @@ void jacobi(std::vector<float>& a, std::vector<float>& b, std::vector<float>& x,
                     bar2.arrive_and_wait();
                 }
             }
-
+            
             bar3.arrive_and_wait();
             if (stop)
                 return;
@@ -83,16 +84,17 @@ void jacobi(std::vector<float>& a, std::vector<float>& b, std::vector<float>& x,
         return;
     };
 
+    // Initialisation of the threads
     std::vector<std::thread> tvec(nw);
     for (int i = 0; i < nw; i++) {
         tvec[i] = std::thread(parjac, i);
     }
 
+    // Waiting the threads
     for(std::thread &thr : tvec) {
         thr.join();
     }
 
-    std::cout << "Jacobi is done" << std::endl;
     return;
 }
 
@@ -117,6 +119,7 @@ int main(int argc, char *argv[]){
     float lo_d = 32.0*((float)(n-1));
     float hi_d = 32.0*((float)(n+1));
 
+    // Generate the matrix A for the linear system Ax = b
     for (int i = 0; i < n; i++){
         for (int j = 0; j < n; j++){
             if (i == j) {
@@ -130,14 +133,20 @@ int main(int argc, char *argv[]){
         }
     }
 
-
+    // Generate the matrix b for the linear system Ax = b
     for (int i = 0; i < n; i++){
         b[i] = lo + static_cast<float> (rand() / static_cast<float>(RAND_MAX/(hi-lo)));;
     }
 
+    
+    // Start to measure the elapsed time
     my_timer timer;
     timer.start_timer();
+    
+    // Compute Jacobi
     jacobi(std::ref(a), std::ref(b), std::ref(x), n, n_iter, tol, ch_conv, nw);
+    
+    // Measure the elapsed time and print the result.
     time_t elapsed = timer.get_time();
     std::cout << "Elapsed time: " << elapsed << std::endl;
 
