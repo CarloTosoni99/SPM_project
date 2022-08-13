@@ -46,23 +46,6 @@ __Parameters__:
 
 ### par_jacobi2.cpp
 
-Implements a parallel version of the Jacobi method. It's very similar to __par_jacobi2.cpp__, but the computation of the stopping criterion is computed in parallel using native c++ threads and barriers. if __ch_conv__ = 0 then __par_jacobi.cpp__ and __par_jacobi2.cpp__ are identical. Requires the file __my_timer.cpp__ to measure the elapsed time during its execution.
-
-__To compile__:&nbsp; &nbsp; _g++ -std=c++20 -o3 -pthread par_jacobi2.cpp -o par_jacobi2_
-
-__Parameters__:
-
-1. int __seed__ : seed to generate random numbers.
-2. int __n__ : linear system's dimension.
-3. int __n_iter__ : number of Jacobi iterations to execute.
-4. int __ch_conv__ : if it's equal to 1 the program will compute the stopping criterion ||x - x_old||/||x|| at each iteration, the program will stop if _tol_ < ||x - x_old||/||x||. If it's equal to 0 the program will not compute any stopping criterion.
-5. float __tol__ : tolerance for convergence, if __tol__ = 0.0  the program will compute at each iteration the stopping criterion without ever reaching convergence. This parameter will not be considered by the program if __ch_conv__ = 0.
-6. int __nw__ : parallel degree of the program. 
-
----
-
-### par_jacobi3.cpp
-
 Implements a parallel version of the Jacobi method. The first internal for loop of the Jacobi algorithm has been parallelised implementing a thread pool created using native c++ threads. It doesn't compute any stopping criteria. Requires the file __my_timer.cpp__ to measure the elapsed time during its execution.
 
 __To compile__:&nbsp; &nbsp; _g++ -o3 -pthread par_jacobi3.cpp -o par_jacobi3_
