@@ -8,44 +8,46 @@
 #include "my_timer.cpp"
 
 
+float compute_norm(std::vector<float>& x, std::vector<float>& xo, int n) {
+
+    // This function computes the stopping criterion ||x - x_old||/||x|| if ch_conv == 1
+    // The stopping criterion is computed sequentially
+    float num = 0.0;
+    for(int i = 0; i < n; i++) {
+        num = num + ((x[i] - xo[i])*(x[i] - xo[i]));
+    }
+    num = std::sqrt(num);
+
+    float den = 0.0;
+    for(int i = 0; i < n; i++) {
+        den = den + (x[i]*x[i]);
+    }
+    den = std::sqrt(den);
+
+    return num / den;
+}
+
+
 void jacobi(std::vector<float>& a, std::vector<float>& b, std::vector<float>& x, int n, int n_iter, float tol, int ch_conv, int nw) {
 
-    std::cout << "entering the Jacobi method... " << std::endl;
-
     int k = 1;
-    int h = 1;
     bool stop = false;
 
     std::vector<float> xo = x;
 
-    std::function<bool(float, float, float)> convergence = [](float num, float den, float tol) {
-        num = std::sqrt(num);
-        den = std::sqrt(den);
-
-        if ((num / den) < tol)
-            return true;
-        return false;
-    };
-
-
-    std::vector<float> num_vec(n, 0);
-    std::vector<float> den_vec(n, 0);
-
-    
-    std::barrier bar(nw, [&]() {return;});
-    std::barrier bar2(nw, [&]() {h = h * 2;});
-    
-    std::barrier bar3(nw, [&]() {
-        stop = convergence(num_vec[0], den_vec[0], tol);
+    // This barrier is required to wait all the threads at the end of each Jacobi iteration
+    std::barrier bar(nw, [&]() {
+        if (ch_conv != 0) {
+            stop = compute_norm(std::ref(x), std::ref(xo), n) < tol;
+        }
         k = k + 1;
         xo = x;
-        h = 1;
     });
-    
+
+    // Parallel Jacobi method
     std::function<void(int)> parjac = [&](int thr_n){
 
         while (k <= n_iter) {
-            //std::cout << "this is thread " << thr_n << " i'm starting iter number " << k << std::endl;
             for (int i = thr_n; i < n; i += nw) {
                 float val = 0.0;
                 for (int j = 0; j < n; j++) {
@@ -54,45 +56,26 @@ void jacobi(std::vector<float>& a, std::vector<float>& b, std::vector<float>& x,
                 }
                 x[i] = (1/a[(n+1)*i])*(b[i]-val);
             }
-
-
+            // Waiting the other threads...
             bar.arrive_and_wait();
-
-
-            if (ch_conv != 0) {
-                for (int i = thr_n; i < n; i += nw) {
-                    num_vec[i] = (x[i] - xo[i])*(x[i] - xo[i]);
-                    den_vec[i] = (x[i]*x[i]);
-                }
-                bar.arrive_and_wait();
-
-                while (h < n) {
-                    for (int i = thr_n * (h*2); i + h < n; i += nw * (h*2)) {
-                        num_vec[i] = num_vec[i] + num_vec[i + h];
-                        den_vec[i] = den_vec[i] + den_vec[i + h];
-                    }
-                    bar2.arrive_and_wait();
-                }
-            }
-
-            bar3.arrive_and_wait();
             if (stop)
                 return;
-
         }
+
         return;
     };
-
+    
+    // Initialisation of the threads
     std::vector<std::thread> tvec(nw);
     for (int i = 0; i < nw; i++) {
         tvec[i] = std::thread(parjac, i);
     }
-
+    
+    // Waiting the threads
     for(std::thread &thr : tvec) {
         thr.join();
     }
 
-    std::cout << "Jacobi is done" << std::endl;
     return;
 }
 
@@ -102,7 +85,7 @@ int main(int argc, char *argv[]){
     int seed = std::stoul(argv[1]); //seed to generate random numbers
     int n = std::stoul(argv[2]); //linear system's dimension
     int n_iter = std::stoul(argv[3]); //maximum number of iterations
-    int ch_conv = std::stoul(argv[4]); //if it's 1 the program will check the convergence of jacobi at each iteration, if it's 0 it will not
+    int ch_conv = std::stoul(argv[4]); //if it's 1 the programm will check the convergence of jacobi at each iteration, if it's 0 it will not
     float tol = std::atof(argv[5]); //maximum tolerance for convergence, the program will use this value only if ch_conv ==
     int nw = std::stoul(argv[6]); //parallel degree
 
@@ -117,6 +100,7 @@ int main(int argc, char *argv[]){
     float lo_d = 32.0*((float)(n-1));
     float hi_d = 32.0*((float)(n+1));
 
+    // Generate the matrix A for the linear system Ax = b
     for (int i = 0; i < n; i++){
         for (int j = 0; j < n; j++){
             if (i == j) {
@@ -131,13 +115,20 @@ int main(int argc, char *argv[]){
     }
 
 
+    // Generate the matrix b for the linear system Ax = b
     for (int i = 0; i < n; i++){
         b[i] = lo + static_cast<float> (rand() / static_cast<float>(RAND_MAX/(hi-lo)));;
     }
+    
 
+    // Start to measure the elapsed time
     my_timer timer;
     timer.start_timer();
+    
+    // Compute Jacobi
     jacobi(std::ref(a), std::ref(b), std::ref(x), n, n_iter, tol, ch_conv, nw);
+    
+    // Measure the elapsed time and print the result.
     time_t elapsed = timer.get_time();
     std::cout << "Elapsed time: " << elapsed << std::endl;
 

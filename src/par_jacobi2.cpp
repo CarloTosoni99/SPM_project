@@ -34,6 +34,7 @@ int main(int argc, char *argv[]) {
     float lo_d = 32.0*((float)(n-1));
     float hi_d = 32.0*((float)(n+1));
 
+    // Generate the matrix A for the linear system Ax = b
     for (int i = 0; i < n; i++){
         std::vector<float> a_row(n);
         for (int j = 0; j < n; j++){
@@ -50,12 +51,13 @@ int main(int argc, char *argv[]) {
     }
 
 
+    // Generate the matrix b for the linear system Ax = b
     for (int i = 0; i < n; i++){
         b[i] = lo + static_cast<float> (rand() / static_cast<float>(RAND_MAX/(hi-lo)));;
     }
 
 
-
+    // Start to measure the elapsed time
     my_timer timer;
     timer.start_timer();
 
@@ -63,7 +65,7 @@ int main(int argc, char *argv[]) {
     std::condition_variable cond;
     std::mutex ll;
 
-
+    // Compute every chunk, each chunk states which, and how many iterations each threads has to compute
     int num_chunk =  n % csize == 0  ? (n / csize) : (n / csize) + 1;
     std::vector<std::pair<int, int>> chunks(num_chunk);
     for(int i = 0; i < num_chunk; i++) {
@@ -72,13 +74,15 @@ int main(int argc, char *argv[]) {
         chunks[i] = std::make_pair(start, end);
     }
 
-
+    // This array of bool variables are used by the threads to understand when the queue has been refilled with new tasks to complete
     bool queue_filled [nw];
     for(int i = 0; i < nw; i++) {
         queue_filled[i] = false;
     }
+    // This bool variable is used by the threads to understand when they have to terminate their execution
     bool is_done = false;
 
+    // Task to execute
     auto f = [](std::vector<float>& x, std::vector<std::vector<float>>& a, std::vector<float>& b,
                 std::vector<float>& xo, std::pair<int, int>& chunk, int n) {
         for (int i = chunk.first; i < chunk.second; i++) {
@@ -91,19 +95,24 @@ int main(int argc, char *argv[]) {
         }
     };
 
-
+    // This function is used by the threads to extract tasks from the queue and to execute them
     auto extract_tasks = [](std::mutex &ll, std::condition_variable &cond, std::deque<std::function<void()>> &task_queue,
                             bool &queue_filled, bool &is_done, int num_thr) {
         while(true) {
             bool modified = false;
             std::function<void()> t = []() {return;};
             {
+                // The thread will wait on the condition variable until the queue has been refilled
+                // with new tasks or the Jacobi method is done
                 std::unique_lock<std::mutex> locking(ll);
                 cond.wait(locking, [&]() {return queue_filled || is_done;});
+                
+                // If the queue is not empty, extract a task...
                 if (!task_queue.empty()) {
                     t = task_queue.back();
                     task_queue.pop_back();
                 }
+                // ...Otherwise wait on the condition variable
                 else {
                     if (queue_filled) {
                         queue_filled = false;
@@ -115,13 +124,14 @@ int main(int argc, char *argv[]) {
                 }
                 locking.unlock();
             }
+            // If the thread has finished to execute the tasks of an iteration, notify it to the main thread
             if (modified)
                 cond.notify_all();
             t();
         }
     };
 
-
+    // Initialise the threads
     std::vector<std::thread> tvec(nw);
     for(int i=0; i < nw; i++) {
         tvec[i] = std::thread(extract_tasks, std::ref(ll), std::ref(cond), std::ref(task_queue),
@@ -131,7 +141,8 @@ int main(int argc, char *argv[]) {
     int k = 1;
     std::vector<float> xo = x;
     while (k <= n_iter) {
-        {
+        {   
+            // Acquire the lock to fill the queue with new tasks to be executed
             std::unique_lock<std::mutex> locking(ll);
             for (int i = 0; i < num_chunk; i++) {
                 auto fx = std::bind(f, std::ref(x), std::ref(a), std::ref(b), std::ref(xo), std::ref(chunks[i]), n);
@@ -141,10 +152,12 @@ int main(int argc, char *argv[]) {
                 queue_filled[i] = true;
             locking.unlock();
         }
+        // Notify a waiting thread
         cond.notify_one();
 
 
         {
+            // Wait every thread before starting a new iteration and refilling the queue
             std::unique_lock<std::mutex> locking(ll);
             cond.wait(locking, [&]() {
                 bool restart = true;
@@ -162,6 +175,8 @@ int main(int argc, char *argv[]) {
         xo = x;
     }
 
+    
+    // Jacobi method is done
     {
         std::unique_lock<std::mutex> locking(ll);
         is_done = true;
@@ -184,11 +199,13 @@ int main(int argc, char *argv[]) {
     }
     */
 
+    
+    // Waiting the termination of the threads
     for(int i = 0; i < nw; i++) {
         tvec[i].join();
     }
 
-
+    // Measure the elapsed time and print it
     time_t elapsed = timer.get_time();
     std::cout << "time elapsed " << elapsed << std::endl;
 

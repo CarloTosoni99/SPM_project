@@ -10,6 +10,7 @@
 
 float compute_norm(std::vector<float>& x, std::vector<float>& xo, int n) {
 
+    // This function computes the stopping criterion ||x - x_old||/||x|| if ch_conv == 1
     float num = 0.0;
     for(int i = 0; i < n; i++) {
         num = num + ((x[i] - xo[i])*(x[i] - xo[i]));
@@ -22,14 +23,12 @@ float compute_norm(std::vector<float>& x, std::vector<float>& xo, int n) {
     }
     den = std::sqrt(den);
 
-    //std::cout << "Current value for convergence " << (num / den) << std::endl;
     return num / den;
 }
 
 void seq_jacobi(std::vector<float>& a, std::vector<float>& b, std::vector<float>& x, int n, int n_iter, float tol, int ch_conv) {
 
-    std::cout << "entering the jacobi method... " << std::endl;
-
+    // Execute the Jacobi method
     int k = 1;
     std::vector<float> xo = x;
     while (k <= n_iter) {
@@ -50,7 +49,6 @@ void seq_jacobi(std::vector<float>& a, std::vector<float>& b, std::vector<float>
         xo = x;
     }
 
-    std::cout << "jacobi is done" << std::endl;
     return;
 }
 
@@ -73,6 +71,7 @@ int main(int argc, char *argv[]) {
     float lo_d = 32.0*((float)(n-1));
     float hi_d = 32.0*((float)(n+1));
 
+    // Generate the matrix A for the linear system Ax = b
     for (int i = 0; i < n; i++){
         for (int j = 0; j < n; j++){
             if (i == j) {
@@ -87,19 +86,24 @@ int main(int argc, char *argv[]) {
     }
 
 
+    // Generate the matrix b for the linear system Ax = b
     for (int i = 0; i < n; i++){
         b[i] = lo + static_cast<float> (rand() / static_cast<float>(RAND_MAX/(hi-lo)));;
     }
 
 
-
+    // Start to measure the elapsed time
     my_timer timer;
     timer.start_timer();
+    
+    // Compute Jacobi
     seq_jacobi(std::ref(a), std::ref(b), std::ref(x), n, n_iter, tol, ch_conv);
+    
+    // Measure the elapsed time and print the result.
     time_t elapsed = timer.get_time();
     std::cout << "Elapsed time: " << elapsed << std::endl;
 
-    // optional to check the error
+    // Optional to check the error
     /*for(int i = 0; i < n; i++){
         float v = 0.0;
         for(int j = 0; j < n; j++){
