@@ -1,115 +1,30 @@
-#include <iostream>
-#include <cmath>
-#include <thread>
 #include <functional>
-#include <barrier>
+#include <deque>
+#include <mutex>
+#include <iostream>
+#include <thread>
 #include <vector>
+#include <cmath>
+#include <condition_variable>
+
 
 #include "my_timer.cpp"
 
 
-void jacobi(std::vector<float>& a, std::vector<float>& b, std::vector<float>& x, int n, int n_iter, float tol, int ch_conv, int nw) {
 
-    int k = 1;
-    int h = 1;
-    bool stop = false;
+using namespace std::chrono_literals;
 
-    std::vector<float> xo = x;
-
-    // Verify if Jacobi converged
-    std::function<bool(float, float, float)> convergence = [](float num, float den, float tol) {
-        num = std::sqrt(num);
-        den = std::sqrt(den);
-
-        if ((num / den) < tol)
-            return true;
-        return false;
-    };
-
-
-    std::vector<float> num_vec(n, 0);
-    std::vector<float> den_vec(n, 0);
-
-    // This barrier is required to wait all the threads at the end of each Jacobi iteration
-    std::barrier bar(nw, [&]() {return;});
-    
-    // These two barriers are required to parallelise the computations of the stopping criterion
-    std::barrier bar2(nw, [&]() {h = h * 2;});
-    std::barrier bar3(nw, [&]() {
-        stop = convergence(num_vec[0], den_vec[0], tol);
-        k = k + 1;
-        xo = x;
-        h = 1;
-    });
-    
-    
-    // Parallel Jacobi method
-    std::function<void(int)> parjac = [&](int thr_n){
-
-        while (k <= n_iter) {
-            for (int i = thr_n; i < n; i += nw) {
-                float val = 0.0;
-                for (int j = 0; j < n; j++) {
-                    if (i != j)
-                        val = val + a[i*n + j]*xo[j];
-                }
-                x[i] = (1/a[(n+1)*i])*(b[i]-val);
-            }
-
-            // Waiting the other threads...
-            bar.arrive_and_wait();
-
-            // Compute the stopping criterion in parallel if ch_conv == 1
-            if (ch_conv != 0) {
-                for (int i = thr_n; i < n; i += nw) {
-                    num_vec[i] = (x[i] - xo[i])*(x[i] - xo[i]);
-                    den_vec[i] = (x[i]*x[i]);
-                }
-                bar.arrive_and_wait();
-
-                while (h < n) {
-                    for (int i = thr_n * (h*2); i + h < n; i += nw * (h*2)) {
-                        num_vec[i] = num_vec[i] + num_vec[i + h];
-                        den_vec[i] = den_vec[i] + den_vec[i + h];
-                    }
-                    bar2.arrive_and_wait();
-                }
-            }
-            
-            bar3.arrive_and_wait();
-            if (stop)
-                return;
-
-        }
-        return;
-    };
-
-    // Initialisation of the threads
-    std::vector<std::thread> tvec(nw);
-    for (int i = 0; i < nw; i++) {
-        tvec[i] = std::thread(parjac, i);
-    }
-
-    // Waiting the threads
-    for(std::thread &thr : tvec) {
-        thr.join();
-    }
-
-    return;
-}
-
-
-int main(int argc, char *argv[]){
+int main(int argc, char *argv[]) {
 
     int seed = std::stoul(argv[1]); //seed to generate random numbers
     int n = std::stoul(argv[2]); //linear system's dimension
     int n_iter = std::stoul(argv[3]); //maximum number of iterations
-    int ch_conv = std::stoul(argv[4]); //if it's 1 the program will check the convergence of jacobi at each iteration, if it's 0 it will not
-    float tol = std::atof(argv[5]); //maximum tolerance for convergence, the program will use this value only if ch_conv ==
-    int nw = std::stoul(argv[6]); //parallel degree
+    int nw = std::stoul(argv[4]); //parallel degree
+    int csize = std::stoul(argv[5]); //chunks' size
+
 
     srand(seed);
-    std::vector<float> a(n*n);
+    std::vector<std::vector<float>> a(n);
     std::vector<float> b(n);
     std::vector<float> x(n, 0);
 
@@ -121,48 +36,178 @@ int main(int argc, char *argv[]){
 
     // Generate the matrix A for the linear system Ax = b
     for (int i = 0; i < n; i++){
+        std::vector<float> a_row(n);
         for (int j = 0; j < n; j++){
             if (i == j) {
-                a[i*n + j] = lo_d + static_cast<float> (rand() / static_cast<float>(RAND_MAX/(hi_d-lo_d)));
+                a_row[j] = lo_d + static_cast<float> (rand() / static_cast<float>(RAND_MAX/(hi_d-lo_d)));
                 if (rand() / static_cast<float>(RAND_MAX) < 0.5)
-                    a[i*n + j] = -a[i*n + j];
+                    a_row[j] = -a_row[j];
             }
             else {
-                a[i*n + j] = lo + static_cast<float> (rand() / static_cast<float>(RAND_MAX/(hi-lo)));
+                a_row[j] = lo + static_cast<float> (rand() / static_cast<float>(RAND_MAX/(hi-lo)));
             }
         }
+        a[i] = a_row;
     }
+
 
     // Generate the matrix b for the linear system Ax = b
     for (int i = 0; i < n; i++){
         b[i] = lo + static_cast<float> (rand() / static_cast<float>(RAND_MAX/(hi-lo)));;
     }
 
-    
+
     // Start to measure the elapsed time
     my_timer timer;
     timer.start_timer();
+
+    std::deque<std::function<void()>> task_queue;
+    std::condition_variable cond;
+    std::mutex ll;
+
+    // Compute every chunk, each chunk states which, and how many iterations each threads has to compute
+    int num_chunk =  n % csize == 0  ? (n / csize) : (n / csize) + 1;
+    std::vector<std::pair<int, int>> chunks(num_chunk);
+    for(int i = 0; i < num_chunk; i++) {
+        int start = csize*i;
+        int end = i != num_chunk - 1 ? csize*(i+1) : n;
+        chunks[i] = std::make_pair(start, end);
+    }
+
+    // This array of bool variables are used by the threads to understand when the queue has been refilled with new tasks to complete
+    bool queue_filled [nw];
+    for(int i = 0; i < nw; i++) {
+        queue_filled[i] = false;
+    }
+    // This bool variable is used by the threads to understand when they have to terminate their execution
+    bool is_done = false;
+
+    // Task to execute
+    auto f = [](std::vector<float>& x, std::vector<std::vector<float>>& a, std::vector<float>& b,
+                std::vector<float>& xo, std::pair<int, int>& chunk, int n) {
+        for (int i = chunk.first; i < chunk.second; i++) {
+            float val = 0.0;
+            for (int j = 0; j < n; j++) {
+                if (i != j)
+                    val = val + a[i][j] * xo[j];
+            }
+            x[i] = (1 / a[i][i]) * (b[i] - val);
+        }
+    };
+
+    // This function is used by the threads to extract tasks from the queue and to execute them
+    auto extract_tasks = [](std::mutex &ll, std::condition_variable &cond, std::deque<std::function<void()>> &task_queue,
+                            bool &queue_filled, bool &is_done, int num_thr) {
+        while(true) {
+            bool modified = false;
+            std::function<void()> t = []() {return;};
+            {
+                // The thread will wait on the condition variable until the queue has been refilled
+                // with new tasks or the Jacobi method is done
+                std::unique_lock<std::mutex> locking(ll);
+                cond.wait(locking, [&]() {return queue_filled || is_done;});
+                
+                // If the queue is not empty, extract a task...
+                if (!task_queue.empty()) {
+                    t = task_queue.back();
+                    task_queue.pop_back();
+                }
+                // ...Otherwise wait on the condition variable
+                else {
+                    if (queue_filled) {
+                        queue_filled = false;
+                        modified = true;
+                    }
+                    if(is_done) {
+                        return;
+                    }
+                }
+                locking.unlock();
+            }
+            // If the thread has finished to execute the tasks of an iteration, notify it to the main thread
+            if (modified)
+                cond.notify_all();
+            t();
+        }
+    };
+
+    // Initialise the threads
+    std::vector<std::thread> tvec(nw);
+    for(int i=0; i < nw; i++) {
+        tvec[i] = std::thread(extract_tasks, std::ref(ll), std::ref(cond), std::ref(task_queue),
+                              std::ref(queue_filled[i]), std::ref(is_done), i);
+    }
+
+    int k = 1;
+    std::vector<float> xo = x;
+    while (k <= n_iter) {
+        {   
+            // Acquire the lock to fill the queue with new tasks to be executed
+            std::unique_lock<std::mutex> locking(ll);
+            for (int i = 0; i < num_chunk; i++) {
+                auto fx = std::bind(f, std::ref(x), std::ref(a), std::ref(b), std::ref(xo), std::ref(chunks[i]), n);
+                task_queue.push_front(fx);
+            }
+            for(int i = 0; i < nw; i++)
+                queue_filled[i] = true;
+            locking.unlock();
+        }
+        // Notify a waiting thread
+        cond.notify_one();
+
+
+        {
+            // Wait every thread before starting a new iteration and refilling the queue
+            std::unique_lock<std::mutex> locking(ll);
+            cond.wait(locking, [&]() {
+                bool restart = true;
+                for(int i = 0; i < nw; i++){
+                    if (queue_filled[i]){
+                        restart = false;
+                        break;
+                    }
+                }
+                return restart;
+            });
+            locking.unlock();
+        }
+        k++;
+        xo = x;
+    }
+
     
-    // Compute Jacobi
-    jacobi(std::ref(a), std::ref(b), std::ref(x), n, n_iter, tol, ch_conv, nw);
-    
-    // Measure the elapsed time and print the result.
-    time_t elapsed = timer.get_time();
-    std::cout << "Elapsed time: " << elapsed << std::endl;
+    // Jacobi method is done
+    {
+        std::unique_lock<std::mutex> locking(ll);
+        is_done = true;
+        locking.unlock();
+        cond.notify_all();
+    }
+
 
 
     // optional to check the error
-    /*std::cout << "error check enabled" << std::endl;
+    /*
+    std::this_thread::sleep_for(2000ms);
     for(int i = 0; i < n; i++){
         float v = 0.0;
         for(int j = 0; j < n; j++){
-            v = a[i*n + j]*x[j] + v;
+            v = a[i][j]*x[j] + v;
         }
         v = v - b[i];
-        if ( v > 0.001 )
-            std::cout << "Error at row i " << v << std::endl;
-    }*/
+        std::cout << "Error at row i " << v << std::endl;
+    }
+    */
 
+    
+    // Waiting the termination of the threads
+    for(int i = 0; i < nw; i++) {
+        tvec[i].join();
+    }
+
+    // Measure the elapsed time and print it
+    time_t elapsed = timer.get_time();
+    std::cout << "time elapsed " << elapsed << std::endl;
 
     return 0;
 }
