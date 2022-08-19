@@ -6,7 +6,9 @@
 
 ---
 
-The project is composed by five different implementations of the Jacobi Method. Below is written which are the main features of each version, how to compile the code and which are the parameters of each program.
+The project is composed by four different implementations of the Jacobi Method. Below is written which are the main features of each version, how to compile the code and which are the parameters of each program.
+
+It is possible to compile all the files running the command&nbsp; &nbsp; ```make```
 
 ---
 
@@ -14,7 +16,7 @@ The project is composed by five different implementations of the Jacobi Method. 
 
 Implements the sequential version of the Jacobi method. Requires the file __my_timer.cpp__ to measure the elapsed time during its execution.
 
-__To compile__:&nbsp; &nbsp; _g++ -o3 seq_jacobi.cpp -o seq_jacobi_
+__To compile__:&nbsp; &nbsp; ```g++ -o3 seq_jacobi.cpp -o seq_jacobi```
 
 __Parameters__:
 
@@ -30,7 +32,7 @@ __Parameters__:
 
 Implements a parallel version of the Jacobi method. The first internal for loop of the Jacobi algorithm has been parallelised using native c++ threads and barriers. The computation of the stopping criterion is perfomed sequentially. Requires the file __my_timer.cpp__ to measure the elapsed time during its execution.
 
-__To compile__:&nbsp; &nbsp; _g++ -std=c++20 -o3 -pthread par_jacobi.cpp -o par_jacobi_
+__To compile__:&nbsp; &nbsp; ```g++ -std=c++20 -o3 -pthread par_jacobi.cpp -o par_jacobi```
 
 __Parameters__:
 
@@ -48,7 +50,7 @@ __Parameters__:
 
 Implements a parallel version of the Jacobi method. The first internal for loop of the Jacobi algorithm has been parallelised implementing a thread pool created using native c++ threads. It doesn't compute any stopping criteria. Requires the file __my_timer.cpp__ to measure the elapsed time during its execution.
 
-__To compile__:&nbsp; &nbsp; _g++ -o3 -pthread par_jacobi3.cpp -o par_jacobi3_
+__To compile__:&nbsp; &nbsp; ```g++ -o3 -pthread par_jacobi2.cpp -o par_jacobi2```
 
 __Parameters__:
 
@@ -64,7 +66,7 @@ __Parameters__:
 
 Implements a parallel version of the Jacobi method. The first internal for loop of the Jacobi algorithm has been parallelised using the class __ParallelFor__ from the programming library __FastFlow__. It doesn't compute any stopping criteria. Requires the file __my_timer.cpp__ to measure the elapsed time during its execution.
 
-__To compile__:&nbsp; &nbsp; _g++ -o3 -pthread par_jacobi_ff.cpp -o par_jacobi_ff_&nbsp; &nbsp; &nbsp; &nbsp; (Requires __FastFlow__ configured)
+__To compile__:&nbsp; &nbsp; ```g++ -o3 -pthread par_jacobi_ff.cpp -o par_jacobi_ff```&nbsp; &nbsp; &nbsp; &nbsp; (Requires __FastFlow__ configured)
 
 __Parameters__:
 
