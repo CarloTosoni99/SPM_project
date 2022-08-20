@@ -7,11 +7,14 @@
 #include <ff/parallel_for.hpp>
 
 #include "my_timer.cpp"
+#include "utils.h"
 
+#define MAX_VALUE 32
+#define MIN_VALUE -32
 
 using namespace ff;
 
-void jacobi(std::vector<float>& a, std::vector<float>& b, std::vector<float>& x, int n, int n_iter, int nw, int chunk_size) {
+void par_jacobi_ff(std::vector<std::vector<float>> &a, std::vector<float> &b, std::vector<float> &x, int n, int n_iter, int nw, int chunk_size, int ch_conv, float tol) {
 
     // Execute the Jacobi method
     int k = 1;
@@ -20,25 +23,32 @@ void jacobi(std::vector<float>& a, std::vector<float>& b, std::vector<float>& x,
     std::vector<float> xo = x;
     
     // FastFlow's class to implement a map
-    ParallelFor pf;
+    ParallelFor pf(nw);
 
-    // Function that has to be executed by the ParallelFor object at each Jacobi iteration
+    // This function has to be executed by the ParallelFor object at each Jacobi iteration
     std::function<void(int)> f = [&](const int i) {
         float val = 0.0;
         for (int j = 0; j < n; j++) {
-            if (i != j)
-                val = val + a[i*n + j]*xo[j];
+            val += a[i][j]*xo[j];
         }
-        x[i] = (1/a[(n+1)*i])*(b[i]-val);
+        val -= a[i][i]*xo[i];
+        x[i] = (b[i]-val)/(a[i][i]);
     };
 
     std::function<void(void)> parjac_ff = [&](){
 
         while (k <= n_iter) {
-            pf.parallel_for(0, n, 1, chunk_size, f, nw);
+            pf.parallel_for(0, n, 1, chunk_size, f);
 
             k = k + 1;
             xo = x;
+
+            //check if the method has reached the convergene, in case stop the iterations
+            if (ch_conv != 0)
+                if (compute_norm(std::ref(x), std::ref(xo), n) < tol) {
+                    std::cout << "condition for convergence is satisfied" << std::endl;
+                    return;
+                }
         }
 
     };
@@ -51,40 +61,28 @@ int main(int argc, char *argv[]) {
     int seed = std::stoul(argv[1]); //seed to generate random numbers
     int n = std::stoul(argv[2]); //linear system's dimension
     int n_iter = std::stoul(argv[3]); //maximum number of iterations
-    int nw = std::stoul(argv[4]); //parallel degree
-    int chunk_size = std::stoul(argv[5]); //chunks' size for the ParallelFor
+    int ch_conv = std::stoul(argv[4]); //if it's 1 the programm will check the convergence of jacobi at each iteration, if it's 0 it will not
+    float tol = std::atof(argv[5]); //maximum tolerance for convergence, the program will use this value only if ch_conv == 1
+    int nw = std::stoul(argv[6]); //parallel degree
+    int chunk_size = std::stoul(argv[7]); //chunks' size for the ParallelFor
 
     srand(seed);
-    std::vector<float> a(n*n);
+
+    // Creation of matrix A
+    std::vector<std::vector<float>> a(n);
+    for (int i = 0; i < n; i++) {
+        a[i] = std::vector<float>(n);
+    }
+    // Creation of vector b
     std::vector<float> b(n);
+    // Creation of vector x
     std::vector<float> x(n, 0);
 
-    float lo = -32.0;
-    float hi = 32.0;
+    // Initialize the matrices A and b
+    initialize_problem(n, std::ref(a), std::ref(b), MIN_VALUE, MAX_VALUE);
 
-    float lo_d = 32.0*((float)(n-1));
-    float hi_d = 32.0*((float)(n+1));
-
-    
-    // Generate the matrix A for the linear system Ax = b
-    for (int i = 0; i < n; i++){
-        for (int j = 0; j < n; j++){
-            if (i == j) {
-                a[i*n + j] = lo_d + static_cast<float> (rand() / static_cast<float>(RAND_MAX/(hi_d-lo_d)));
-                if (rand() / static_cast<float>(RAND_MAX) < 0.5)
-                    a[i*n + j] = -a[i*n + j];
-            }
-            else {
-                a[i*n + j] = lo + static_cast<float> (rand() / static_cast<float>(RAND_MAX/(hi-lo)));
-            }
-        }
-    }
-
-    // Generate the matrix b for the linear system Ax = b
-    for (int i = 0; i < n; i++){
-        b[i] = lo + static_cast<float> (rand() / static_cast<float>(RAND_MAX/(hi-lo)));;
-    }
-
+    // OPTIONAL, print the system created
+    //print_system(n, std::ref(a), std::ref(b));
 
     
     // Start to measure the elapsed time
@@ -92,21 +90,15 @@ int main(int argc, char *argv[]) {
     timer.start_timer();
     
     // Compute Jacobi
-    jacobi(std::ref(a), std::ref(b), std::ref(x), n, n_iter, nw, chunk_size);
+    par_jacobi_ff(std::ref(a), std::ref(b), std::ref(x), n, n_iter, nw, chunk_size, ch_conv, tol);
     
     // Measure the elapsed time and print the result.
     time_t elapsed = timer.get_time();
     std::cout << "Elapsed time: " << elapsed << std::endl;
 
-    // optional to check the error
-    /*for(int i = 0; i < n; i++){
-        float v = 0.0;
-        for(int j = 0; j < n; j++){
-            v = a[i*n + j]*x[j] + v;
-        }
-        v = v - b[i];
-        std::cout << "Error at row i " << v << std::endl;
-    }*/
+
+    // OPTIONAL to check the error
+    //check_error(n, std::ref(a), std::ref(b), std::ref(x));
 
     return 0;
 }
