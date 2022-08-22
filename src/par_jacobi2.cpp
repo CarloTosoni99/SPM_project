@@ -4,62 +4,49 @@
 #include <iostream>
 #include <thread>
 #include <vector>
-#include <cmath>
 #include <condition_variable>
 
-
+#include "utils.h"
 #include "my_timer.cpp"
 
+#define MAX_VALUE 32
+#define MIN_VALUE -32
 
 
-using namespace std::chrono_literals;
 
 int main(int argc, char *argv[]) {
 
     int seed = std::stoul(argv[1]); //seed to generate random numbers
     int n = std::stoul(argv[2]); //linear system's dimension
     int n_iter = std::stoul(argv[3]); //maximum number of iterations
-    int nw = std::stoul(argv[4]); //parallel degree
-    int csize = std::stoul(argv[5]); //chunks' size
-
+    int ch_conv = std::stoul(argv[4]); //if it's 1 the programm will check the convergence of jacobi at each iteration, if it's 0 it will not
+    float tol = std::atof(argv[5]); //maximum tolerance for convergence, the program will use this value only if ch_conv == 1
+    int nw = std::stoul(argv[6]); //parallel degree
+    int csize = std::stoul(argv[7]); //chunks' size
 
     srand(seed);
+
+    // Creation of matrix A
     std::vector<std::vector<float>> a(n);
+    for (int i = 0; i < n; i++) {
+        a[i] = std::vector<float>(n);
+    }
+    // Creation of vector b
     std::vector<float> b(n);
+    // Creation of vector x
     std::vector<float> x(n, 0);
 
-    float lo = -32.0;
-    float hi = 32.0;
+    // Initialize the matrices A and b
+    initialize_problem(n, std::ref(a), std::ref(b), MIN_VALUE, MAX_VALUE);
 
-    float lo_d = 32.0*((float)(n-1));
-    float hi_d = 32.0*((float)(n+1));
-
-    // Generate the matrix A for the linear system Ax = b
-    for (int i = 0; i < n; i++){
-        std::vector<float> a_row(n);
-        for (int j = 0; j < n; j++){
-            if (i == j) {
-                a_row[j] = lo_d + static_cast<float> (rand() / static_cast<float>(RAND_MAX/(hi_d-lo_d)));
-                if (rand() / static_cast<float>(RAND_MAX) < 0.5)
-                    a_row[j] = -a_row[j];
-            }
-            else {
-                a_row[j] = lo + static_cast<float> (rand() / static_cast<float>(RAND_MAX/(hi-lo)));
-            }
-        }
-        a[i] = a_row;
-    }
-
-
-    // Generate the matrix b for the linear system Ax = b
-    for (int i = 0; i < n; i++){
-        b[i] = lo + static_cast<float> (rand() / static_cast<float>(RAND_MAX/(hi-lo)));;
-    }
+    // OPTIONAL, print the system created
+    //print_system(n, std::ref(a), std::ref(b));
 
 
     // Start to measure the elapsed time
     my_timer timer;
     timer.start_timer();
+
 
     std::deque<std::function<void()>> task_queue;
     std::condition_variable cond;
@@ -74,6 +61,7 @@ int main(int argc, char *argv[]) {
         chunks[i] = std::make_pair(start, end);
     }
 
+
     // This array of bool variables are used by the threads to understand when the queue has been refilled with new tasks to complete
     bool queue_filled [nw];
     for(int i = 0; i < nw; i++) {
@@ -81,17 +69,20 @@ int main(int argc, char *argv[]) {
     }
     // This bool variable is used by the threads to understand when they have to terminate their execution
     bool is_done = false;
+    // This bool variable is set to true iff the system achieves convergence
+    bool conv = false;
 
     // Task to execute
     auto f = [](std::vector<float>& x, std::vector<std::vector<float>>& a, std::vector<float>& b,
                 std::vector<float>& xo, std::pair<int, int>& chunk, int n) {
+        float val;
         for (int i = chunk.first; i < chunk.second; i++) {
-            float val = 0.0;
+            val = 0.0;
             for (int j = 0; j < n; j++) {
-                if (i != j)
-                    val = val + a[i][j] * xo[j];
+                val += a[i][j] * xo[j];
             }
-            x[i] = (1 / a[i][i]) * (b[i] - val);
+            val -= a[i][i]*xo[i];
+            x[i] =  (b[i] - val)/(a[i][i]);
         }
     };
 
@@ -140,8 +131,8 @@ int main(int argc, char *argv[]) {
 
     int k = 1;
     std::vector<float> xo = x;
-    while (k <= n_iter) {
-        {   
+    while (k <= n_iter && !is_done) {
+        {
             // Acquire the lock to fill the queue with new tasks to be executed
             std::unique_lock<std::mutex> locking(ll);
             for (int i = 0; i < num_chunk; i++) {
@@ -167,6 +158,16 @@ int main(int argc, char *argv[]) {
                         break;
                     }
                 }
+                //check if the method has reached the convergene, in case stop the iterations
+                if (ch_conv != 0)
+                    if (restart)
+                        if (compute_norm(std::ref(x), std::ref(xo), n) < tol) {
+                            std::cout << "condition for convergence is satisfied" << std::endl;
+                            is_done = true;
+                            conv = true;
+                            cond.notify_all();
+                        }
+
                 return restart;
             });
             locking.unlock();
@@ -177,7 +178,7 @@ int main(int argc, char *argv[]) {
 
     
     // Jacobi method is done
-    {
+    if (!conv) {
         std::unique_lock<std::mutex> locking(ll);
         is_done = true;
         locking.unlock();
@@ -186,20 +187,6 @@ int main(int argc, char *argv[]) {
 
 
 
-    // optional to check the error
-    /*
-    std::this_thread::sleep_for(2000ms);
-    for(int i = 0; i < n; i++){
-        float v = 0.0;
-        for(int j = 0; j < n; j++){
-            v = a[i][j]*x[j] + v;
-        }
-        v = v - b[i];
-        std::cout << "Error at row i " << v << std::endl;
-    }
-    */
-
-    
     // Waiting the termination of the threads
     for(int i = 0; i < nw; i++) {
         tvec[i].join();
@@ -208,6 +195,10 @@ int main(int argc, char *argv[]) {
     // Measure the elapsed time and print it
     time_t elapsed = timer.get_time();
     std::cout << "time elapsed " << elapsed << std::endl;
+
+
+    // OPTIONAL to check the error
+    //check_error(n, std::ref(a), std::ref(b), std::ref(x));
 
     return 0;
 }
