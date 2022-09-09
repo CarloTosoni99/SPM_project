@@ -25,6 +25,8 @@ __Parameters__:
 3. int __n_iter__ : number of Jacobi iterations to execute.
 4. int __ch_conv__ : if it's equal to 1 the program will compute the stopping criterion ||x - x_old||/||x|| at each iteration, the program will stop if _tol_ < ||x - x_old||/||x||. If it's equal to 0 the program will not compute any stopping criterion.
 5. float __tol__ : tolerance for convergence, if __tol__ = 0.0  the program will compute at each iteration the stopping criterion without ever reaching convergence. This parameter will not be considered by the program if __ch_conv__ = 0.
+6. int __stats__ : if it's equal to 1 or 2 the programm will print some stats about the program execution (i.e. if __stats__ == 1, the program measures the time required to compute one interation of the while loop of the Jacobi method, if __stats__ == 2, the program measures the time required to compute one iteration of the internal for loop of the Jacobi method), if it's equal to 0 it will not.
+
 
 ---
 
@@ -41,7 +43,8 @@ __Parameters__:
 3. int __n_iter__ : number of Jacobi iterations to execute.
 4. int __ch_conv__ : if it's equal to 1 the program will compute the stopping criterion ||x - x_old||/||x|| at each iteration, the program will stop if _tol_ < ||x - x_old||/||x||. If it's equal to 0 the program will not compute any stopping criterion.
 5. float __tol__ : tolerance for convergence, if __tol__ = 0.0  the program will compute at each iteration the stopping criterion without ever reaching convergence. This parameter will not be considered by the program if __ch_conv__ = 0.
-6. int __nw__ : parallel degree of the program. 
+6. int __nw__ : parallel degree of the program.
+7. int __stats__ : if it's equal to 1 the programm will print some stats about the program execution (i.e. time required to initialize the barrier, elapsed time of the fastest thread at each Jacobi iteration, elapsed time of the slowest thread at each Jacobi iteration, average elapsed time of all threads at each Jacobi iteration, maximum waiting time among the threads at each Jacobi iteration, average waiting time at each Jacobi iteration), if it's equal to 0 it will not.
 
 
 ---
@@ -61,6 +64,10 @@ __Parameters__:
 5. float __tol__ : tolerance for convergence, if __tol__ = 0.0  the program will compute at each iteration the stopping criterion without ever reaching convergence. This parameter will not be considered by the program if __ch_conv__ = 0.
 6. int __nw__ : parallel degree of the program. 
 7. int __csize__: chunks' dimension, it indicates how many iterations a subtask consists of.
+8. int __stats__ : if it's equal to 1 the programm will print some stats about the program execution (i.e. lowest total execution time among all threads, highest total execution time among all the threads, average execution time of the threads, lowest total
+waiting time among all the threads, highest total waiting time among all the threads, average waiting time of the threads,
+average ratio execution time/(execution time + waiting time) of the threads, total time needed to refill the queue by
+the main thread), if it's equal to 0 it will not.
 
 ---
 
@@ -79,6 +86,19 @@ __Parameters__:
 5. float __tol__ : tolerance for convergence, if __tol__ = 0.0  the program will compute at each iteration the stopping criterion without ever reaching convergence. This parameter will not be considered by the program if __ch_conv__ = 0.
 6. int __nw__ : parallel degree of the program. 
 7. int __chunk_size__: chunks' dimension (required by the method __parallel_for()__ of the class __ParallelFor__).
+
+---
+
+### test.cpp 
+
+This file will not be compiled by the command ```make```. This file has been implemented to study the time required to fork-join threads and to notify waiting threads.
+
+__To compile__:&nbsp; &nbsp; ```g++ -std=c++20 -O3 -pthread test.cpp -o test```
+
+__Parameters__:
+
+1. int __nw__ : parallel degree of the program.
+2. int __dummy_mode__ : if it's equal to 1, the program instantiates __nw__ threads that compute a dummy function, the program prints the elapsed time to fork-join the __nw__ threads. If it's equal to 0, the program instantiates __nw__ threads that wait the main thread on a mutex. When the main thread is ready it uses a __condition_variable__ to execute __notify_all()__ and to wake up all the waiting threads. In this case, the program prints the elapsed time to execute __notify_all()__ and to fork-join the __nw__ threads. 
 
 ---
 

@@ -1,5 +1,7 @@
 #include <vector>
 
+using time_t = long int;
+
 
 // Initialize the matrices A and b of the linear system
 void initialize_problem(int n, std::vector<std::vector<float>> &a, std::vector<float> &b, float min_value, float max_value);
@@ -14,3 +16,16 @@ void print_system(int n, std::vector<std::vector<float>> &a, std::vector<float> 
 
 // OPTIONAL, this function checks the error at the end of Jacobi
 void check_error(int n, std::vector<std::vector<float>> &a, std::vector<float> &b, std::vector<float> &x);
+
+
+// This function is used by the program par_jacobi.cpp (barriers) to compute: elapsed time of the fastest thread,
+// elapsed time of the slowest thread, average elapsed time of all the threads, maximum waiting time, average waiting
+// time.
+void barrier_stats(std::vector<time_t> &wait_time, int iter);
+
+// This function is used by the program par_jacobi2.cpp (thread pool) to compute: lowest total execution time among all
+// threads, highest execution time among all the threads, average execution time of the threads, lowest waiting time
+// among all the threads, highest waiting time among all the threads, average waiting time of the threads, average ratio
+// execution time/(execution time + waiting time) of the threads, total time needed to refill the queue by the main
+// thread
+void thr_pool_stats(std::vector<time_t> &wait_time, std::vector<time_t> &ex_time, time_t &rf_queue);
