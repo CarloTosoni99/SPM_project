@@ -174,7 +174,7 @@ void TaskQueue::extract_tasks_stats(int num_thr, std::vector<time_t> &wait_time,
     }
 
     wait_time[num_thr] = wait_timer.final_time();
-    ex_time[num_thr] = ex_timer.final_time();
+    ex_time[num_thr] = ex_timer.saved_time();
 };
 
 // This function is used by the main thread to insert new tasks in the shared queue
@@ -288,7 +288,7 @@ void TaskQueue::insert_tasks_stats(std::vector<std::vector<float>> &a, std::vect
         xo = x;
     }
 
-    rf_queue = qu_timer.final_time();
+    rf_queue = qu_timer.saved_time();
 };
 
 

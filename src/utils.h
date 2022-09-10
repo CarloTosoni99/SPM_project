@@ -20,7 +20,7 @@ void check_error(int n, std::vector<std::vector<float>> &a, std::vector<float> &
 
 // This function is used by the program par_jacobi.cpp (barriers) to compute: elapsed time of the fastest thread,
 // elapsed time of the slowest thread, average elapsed time of all the threads, maximum waiting time, average waiting
-// time.
+// time, percentage active time.
 void barrier_stats(std::vector<time_t> &wait_time, int iter);
 
 // This function is used by the program par_jacobi2.cpp (thread pool) to compute: lowest total execution time among all

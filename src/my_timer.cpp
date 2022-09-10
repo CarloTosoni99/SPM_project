@@ -48,6 +48,11 @@ public:
     return prv_time + elapsed;
   }
 
+  // return only the state of the timer (i.e. par_time)
+  time_t saved_time() {
+      return par_time;
+  }
+
   // return the elapsed time, without considering the state of the timer (i.e. par_time)
   time_t get_time() {
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();

@@ -44,7 +44,7 @@ __Parameters__:
 4. int __ch_conv__ : if it's equal to 1 the program will compute the stopping criterion ||x - x_old||/||x|| at each iteration, the program will stop if _tol_ < ||x - x_old||/||x||. If it's equal to 0 the program will not compute any stopping criterion.
 5. float __tol__ : tolerance for convergence, if __tol__ = 0.0  the program will compute at each iteration the stopping criterion without ever reaching convergence. This parameter will not be considered by the program if __ch_conv__ = 0.
 6. int __nw__ : parallel degree of the program.
-7. int __stats__ : if it's equal to 1 the programm will print some stats about the program execution (i.e. time required to initialize the barrier, elapsed time of the fastest thread at each Jacobi iteration, elapsed time of the slowest thread at each Jacobi iteration, average elapsed time of all threads at each Jacobi iteration, maximum waiting time among the threads at each Jacobi iteration, average waiting time at each Jacobi iteration), if it's equal to 0 it will not.
+7. int __stats__ : if it's equal to 1 the programm will print some stats about the program execution (i.e. time required to initialize the barrier, elapsed time of the fastest thread at each Jacobi iteration, elapsed time of the slowest thread at each Jacobi iteration, average elapsed time of all threads at each Jacobi iteration, maximum waiting time among the threads at each Jacobi iteration, average waiting time at each Jacobi iteration, percentage active time), if it's equal to 0 it will not.
 
 
 ---

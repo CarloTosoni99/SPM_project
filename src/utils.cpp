@@ -115,7 +115,7 @@ void check_error(int n, std::vector<std::vector<float>> &a, std::vector<float> &
 
 // This function is used by the program par_jacobi.cpp (barriers) to compute: elapsed time of the fastest thread,
 // elapsed time of the slowest thread, average elapsed time of all the threads, maximum waiting time, average waiting
-// time.
+// time, percentage active time.
 void barrier_stats(std::vector<time_t> &wait_time, int iter){
 
     time_t fs_thr = LONG_MAX; // Fastest thread time
@@ -123,6 +123,7 @@ void barrier_stats(std::vector<time_t> &wait_time, int iter){
     time_t avg_thr = 0; // Average threads time
     time_t max_wt = LONG_MIN; // Maximum waiting time
     time_t avg_wt = 0; // Average waiting time
+    float perc_at = 0.0; // percentage active time
 
     int n = wait_time.size();
 
@@ -146,6 +147,7 @@ void barrier_stats(std::vector<time_t> &wait_time, int iter){
     }
 
     avg_wt = (long) avg_wt / n;
+    perc_at = ((float) avg_thr) / ((float) avg_thr + avg_wt);
 
     std::cout << "Stats of iteration " << iter << std::endl;
     std::cout << "Fastest thread time: " << fs_thr << std::endl;
@@ -153,6 +155,7 @@ void barrier_stats(std::vector<time_t> &wait_time, int iter){
     std::cout << "Average threads time: " << avg_thr << std::endl;
     std::cout << "Maximum waiting time: " << max_wt << std::endl;
     std::cout << "Average waiting time: " << avg_wt << std::endl;
+    std::cout << "Percentage active time: " << perc_at << std::endl;
 
 }
 
