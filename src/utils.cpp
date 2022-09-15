@@ -112,50 +112,73 @@ void check_error(int n, std::vector<std::vector<float>> &a, std::vector<float> &
     }
 }
 
+// This function is used by the program par_jacobi.cpp (barriers) to compute: the time spent to execute subtasks and to
+// wait on the barrier by each thread
+void barrier_elapsed_time(std::vector<time_t> &wait_time, std::vector<time_t> &tot_wait_time,
+                          std::vector<time_t> &tot_ex_time) {
 
-// This function is used by the program par_jacobi.cpp (barriers) to compute: elapsed time of the fastest thread,
-// elapsed time of the slowest thread, average elapsed time of all the threads, maximum waiting time, average waiting
-// time, percentage active time.
-void barrier_stats(std::vector<time_t> &wait_time, int iter){
-
-    time_t fs_thr = LONG_MAX; // Fastest thread time
-    time_t sl_thr = LONG_MIN; // Slowest thread time
-    time_t avg_thr = 0; // Average threads time
     time_t max_wt = LONG_MIN; // Maximum waiting time
-    time_t avg_wt = 0; // Average waiting time
-    float perc_at = 0.0; // percentage active time
 
     int n = wait_time.size();
 
     for (int i = 0; i < n; i++) {
 
-        if (wait_time[i] < fs_thr)
-            fs_thr = wait_time[i];
-        if (wait_time[i] > sl_thr)
-            sl_thr = wait_time[i];
-
-        avg_thr += wait_time[i];
-    }
-    avg_thr = (long) avg_thr / n;
-
-    for(int i = 0; i < n; i++) {
-
-        if (sl_thr - wait_time[i] > max_wt)
-            max_wt = sl_thr - wait_time[i];
-
-        avg_wt += sl_thr - wait_time[i];
+        if (wait_time[i] > max_wt)
+            max_wt = wait_time[i];
     }
 
-    avg_wt = (long) avg_wt / n;
-    perc_at = ((float) avg_thr) / ((float) avg_thr + avg_wt);
+    for (int i = 0; i < n; i++) {
 
-    std::cout << "Stats of iteration " << iter << std::endl;
-    std::cout << "Fastest thread time: " << fs_thr << std::endl;
-    std::cout << "Slowest thread time: " << sl_thr << std::endl;
-    std::cout << "Average threads time: " << avg_thr << std::endl;
-    std::cout << "Maximum waiting time: " << max_wt << std::endl;
+        tot_ex_time[i] += wait_time[i];
+        tot_wait_time[i] += max_wt - wait_time[i];
+    }
+}
+
+
+// This function is used by the program par_jacobi.cpp (barriers) to compute: elapsed execution time of the fastest
+// thread, elapsed execution time of the slowest thread, average elapsed execution time of all the threads, maximum
+// waiting time, minimum waiting time, average waiting time, percentage active time.
+barrier_stats(std::vector<time_t> &tot_wait_time, std::vector<time_t> &tot_ex_time){
+
+    time_t hi_ex = LONG_MIN; // highest thread execution time
+    time_t lo_ex = LONG_MAX; // lowest thread execution time
+    time_t avg_ex = 0; // average threads execution time
+    time_t max_wt = LONG_MIN; // maximum waiting time
+    time_t min_wt = LONG_MAX; // minimum waiting time
+    time_t avg_wt = 0; // average waiting time
+    float perc_at = 0.0; // percentage active time
+
+    int n = wait_time.size();
+
+    for (int i = 0; i < n; i++){
+
+        if (tot_ex_time[i] > hi_ex)
+            hi_ex = tot_ex_time[i];
+        if (tot_ex_time[i] < lo_ex)
+            lo_ex = tot_ex_time[i];
+
+        avg_ex += tot_ex_time[i];
+
+        if (tot_wait_time[i] > max_wt)
+            max_wt = tot_wait_time[i];
+        if (tot_wait_time[i] < min_wt)
+            min_wt = tot_wait_time[i];
+
+        avg_wt += tot_wait_time[i];
+    }
+
+    avg_wt = avg_wt / n;
+    avg_ex = avg_ex / n;
+
+    perc_at = avg_ex / (avg_ex + avg_wt);
+
+    std::cout << "Highest total execution time: " << hi_ex << std::endl;
+    std::cout << "Lowest total execution time: " << lw_ex << std::endl;
+    std::cout << "Average execution time: " << avg_ex << std::endl;
+    std::cout << "Highest total waiting time: " << hi_wt << std::endl;
+    std::cout << "Lowest total waiting time: " << lw_wt << std::endl;
     std::cout << "Average waiting time: " << avg_wt << std::endl;
-    std::cout << "Percentage active time: " << perc_at << std::endl;
+    std::cout << "Average active time " << perc_at << std::endl;
 
 }
 

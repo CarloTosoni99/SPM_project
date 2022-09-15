@@ -73,7 +73,8 @@ void par_jacobi(std::vector<std::vector<float>> &a, std::vector<float> &b, std::
 // execution of the Jacobi method. This version has been separated from the standard one due to its slight higher
 // overhead. This version will be executed iff it is passed the argument stats == 1 to the program
 void par_jacobi_stats(std::vector<std::vector<float>> &a, std::vector<float> &b, std::vector<float> &x, int n, int n_iter,
-                float tol, int ch_conv, int nw, std::vector<time_t> wait_time) {
+                float tol, int ch_conv, int nw, std::vector<time_t> &wait_time, std::vector<time_t> &tot_wait_time,
+                std::vector<time_t> &tot_ex_time) {
 
     int k = 1;
     bool stop = false;
@@ -89,9 +90,8 @@ void par_jacobi_stats(std::vector<std::vector<float>> &a, std::vector<float> &b,
 
     std::barrier bar(nw, [&]() {
 
-        // This function is used to find: elapsed time of the fastest thread, elapsed time of the slowest thread,
-        // average elapsed time of all the threads, maximum waiting time, average waiting time.
-        barrier_stats(std::ref(wait_time), k);
+        // At the end of each iteration, update the total waiting time and the total execution time of each thread
+        barrier_elapsed_time(std::ref(wait_time), std::ref(tot_wait_time), std::ref(tot_ex_time));
 
         if (ch_conv != 0) {
             stop = compute_norm(std::ref(x), std::ref(xo), n) < tol;
@@ -179,6 +179,10 @@ int main(int argc, char *argv[]){
     // vector of the average waiting time of each thread, this vector is used to understand how much a static
     // load balancing policy affects the performance of par_jacobi.cpp. It will be filled iff stats == 1
     std::vector<time_t> wait_time(nw, 0);
+    // total waiting time of each thread
+    std::vector<time_t> tot_wait_time(nw, 0):
+    // total execution time of each thread
+    std::vector<time_t> tot_ex_time(nw, 0);
 
     // Initialize the matrices A and b
     initialize_problem(n, std::ref(a), std::ref(b), MIN_VALUE, MAX_VALUE);
@@ -191,14 +195,22 @@ int main(int argc, char *argv[]){
     my_timer timer;
     timer.start_timer();
     
-    // Compute Jacobi
+    // Compute Jacobi1
     // if stats is equal to 0, the program will execute the standard version of the parallel Jacobi algorithm
     if (stats == 0)
         par_jacobi(std::ref(a), std::ref(b), std::ref(x), n, n_iter, tol, ch_conv, nw);
     // Otherwise, if stats is equal to 1, the program will execute the version of the parallel Jacobi algorithm that
     // prints some data about its execution time
     else
-        par_jacobi_stats(std::ref(a), std::ref(b), std::ref(x), n, n_iter, tol, ch_conv, nw, wait_time);
+        par_jacobi_stats(std::ref(a), std::ref(b), std::ref(x), n, n_iter, tol, ch_conv, nw, std::ref(wait_time),
+                         std::ref(tot_wait_time), std::ref(tot_ex_time));
+
+
+    // This function is used to find: elapsed time of the fastest thread, elapsed time of the slowest thread,
+    // average elapsed time of all the threads, maximum waiting time, minimum waiting time, average waiting time. Called
+    // only if stats == 1
+    if (stats != 0)
+        barrier_stats(std::ref(tot_wait_time), std::ref(tot_ex_time));
 
     // Measure the elapsed time and print the result.
     time_t elapsed = timer.get_time();
