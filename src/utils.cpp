@@ -2,6 +2,7 @@
 #include <cmath>
 #include <random>
 #include <vector>
+#include <climits>
 
 #include "utils.h"
 
@@ -109,4 +110,101 @@ void check_error(int n, std::vector<std::vector<float>> &a, std::vector<float> &
         err = err - b[i];
         std::cout << "Error at row i " << err << std::endl;
     }
+}
+
+
+// This function is used by the program par_jacobi.cpp (barriers) to compute: elapsed time of the fastest thread,
+// elapsed time of the slowest thread, average elapsed time of all the threads, maximum waiting time, average waiting
+// time, percentage active time.
+void barrier_stats(std::vector<time_t> &wait_time, int iter){
+
+    time_t fs_thr = LONG_MAX; // Fastest thread time
+    time_t sl_thr = LONG_MIN; // Slowest thread time
+    time_t avg_thr = 0; // Average threads time
+    time_t max_wt = LONG_MIN; // Maximum waiting time
+    time_t avg_wt = 0; // Average waiting time
+    float perc_at = 0.0; // percentage active time
+
+    int n = wait_time.size();
+
+    for (int i = 0; i < n; i++) {
+
+        if (wait_time[i] < fs_thr)
+            fs_thr = wait_time[i];
+        if (wait_time[i] > sl_thr)
+            sl_thr = wait_time[i];
+
+        avg_thr += wait_time[i];
+    }
+    avg_thr = (long) avg_thr / n;
+
+    for(int i = 0; i < n; i++) {
+
+        if (sl_thr - wait_time[i] > max_wt)
+            max_wt = sl_thr - wait_time[i];
+
+        avg_wt += sl_thr - wait_time[i];
+    }
+
+    avg_wt = (long) avg_wt / n;
+    perc_at = ((float) avg_thr) / ((float) avg_thr + avg_wt);
+
+    std::cout << "Stats of iteration " << iter << std::endl;
+    std::cout << "Fastest thread time: " << fs_thr << std::endl;
+    std::cout << "Slowest thread time: " << sl_thr << std::endl;
+    std::cout << "Average threads time: " << avg_thr << std::endl;
+    std::cout << "Maximum waiting time: " << max_wt << std::endl;
+    std::cout << "Average waiting time: " << avg_wt << std::endl;
+    std::cout << "Percentage active time: " << perc_at << std::endl;
+
+}
+
+
+// This function is used by the program par_jacobi2.cpp (thread pool) to compute: lowest total execution time among all
+// threads, highest total execution time among all the threads, average execution time of the threads, lowest total
+// waiting time among all the threads, highest total waiting time among all the threads, average waiting time of the threads,
+// average ratio execution time/(execution time + waiting time) of the threads, total time needed to refill the queue by
+// the main thread
+void thr_pool_stats(std::vector<time_t> &wait_time, std::vector<time_t> &ex_time, time_t &rf_queue) {
+
+    time_t lw_et = LONG_MAX; // lowest total execution time
+    time_t hi_et = LONG_MIN; // highest total execution time
+    time_t avg_et = 0; // average execution time
+    time_t lw_wt = LONG_MAX; // lowest total waiting time
+    time_t hi_wt = LONG_MIN; // highest total waiting time
+    time_t avg_wt = 0; // average waiting time
+    float avg_rt = 0.0; // average ratio execution time/(execution time + waiting time)
+
+    int n = wait_time.size();
+
+    for (int i = 0; i < n; i++) {
+
+        if (ex_time[i] < lw_et)
+            lw_et = ex_time[i];
+        if (wait_time[i] < lw_wt)
+            lw_wt = wait_time[i];
+
+        if (ex_time[i] > hi_et)
+            hi_et = ex_time[i];
+        if (wait_time[i] > hi_wt)
+            hi_wt = wait_time[i];
+
+        avg_et += ex_time[i];
+        avg_wt += wait_time[i];
+
+    }
+
+    avg_et = (long) avg_et / n;
+    avg_wt = (long) avg_wt / n;
+    avg_rt = ((float) avg_et) / ((float) avg_et + avg_wt);
+
+
+    std::cout << "Lowest total execution time: " << lw_et << std::endl;
+    std::cout << "Highest total execution time: " << hi_et << std::endl;
+    std::cout << "Average execution time: " << avg_et << std::endl;
+    std::cout << "Lowest total waiting time: " << lw_wt << std::endl;
+    std::cout << "Highest total waiting time: " << hi_wt << std::endl;
+    std::cout << "Average waiting time: " << avg_wt << std::endl;
+    std::cout << "Average ratio execution time/(execution time + waiting time): " << avg_rt << std::endl;
+    std::cout << "Total time needed to refill the queue: " << rf_queue << std::endl;
 }
