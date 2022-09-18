@@ -382,7 +382,7 @@ int main(int argc, char *argv[]) {
 
     // Measure the elapsed time and print it
     time_t elapsed = timer.get_time();
-    //std::cout << "elapsed time " << elapsed << std::endl;
+    std::cout << "elapsed time " << elapsed << std::endl;
 
     // OPTIONAL to check the error
     //check_error(n, std::ref(a), std::ref(b), std::ref(x));

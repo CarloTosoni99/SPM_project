@@ -180,7 +180,7 @@ int main(int argc, char *argv[]){
     // load balancing policy affects the performance of par_jacobi.cpp. It will be filled iff stats == 1
     std::vector<time_t> wait_time(nw, 0);
     // total waiting time of each thread
-    std::vector<time_t> tot_wait_time(nw, 0):
+    std::vector<time_t> tot_wait_time(nw, 0);
     // total execution time of each thread
     std::vector<time_t> tot_ex_time(nw, 0);
 
@@ -218,7 +218,7 @@ int main(int argc, char *argv[]){
 
     
     // OPTIONAL to check the error
-    check_error(n, std::ref(a), std::ref(b), std::ref(x));
+    //check_error(n, std::ref(a), std::ref(b), std::ref(x));
 
     return 0;
 }

@@ -132,13 +132,14 @@ void barrier_elapsed_time(std::vector<time_t> &wait_time, std::vector<time_t> &t
         tot_ex_time[i] += wait_time[i];
         tot_wait_time[i] += max_wt - wait_time[i];
     }
+
 }
 
 
 // This function is used by the program par_jacobi.cpp (barriers) to compute: elapsed execution time of the fastest
 // thread, elapsed execution time of the slowest thread, average elapsed execution time of all the threads, maximum
 // waiting time, minimum waiting time, average waiting time, percentage active time.
-barrier_stats(std::vector<time_t> &tot_wait_time, std::vector<time_t> &tot_ex_time){
+void barrier_stats(std::vector<time_t> &tot_wait_time, std::vector<time_t> &tot_ex_time){
 
     time_t hi_ex = LONG_MIN; // highest thread execution time
     time_t lo_ex = LONG_MAX; // lowest thread execution time
@@ -148,7 +149,7 @@ barrier_stats(std::vector<time_t> &tot_wait_time, std::vector<time_t> &tot_ex_ti
     time_t avg_wt = 0; // average waiting time
     float perc_at = 0.0; // percentage active time
 
-    int n = wait_time.size();
+    int n = tot_wait_time.size();
 
     for (int i = 0; i < n; i++){
 
@@ -170,16 +171,15 @@ barrier_stats(std::vector<time_t> &tot_wait_time, std::vector<time_t> &tot_ex_ti
     avg_wt = avg_wt / n;
     avg_ex = avg_ex / n;
 
-    perc_at = avg_ex / (avg_ex + avg_wt);
+    perc_at = (float) avg_ex / ((float) avg_ex + avg_wt);
 
     std::cout << "Highest total execution time: " << hi_ex << std::endl;
-    std::cout << "Lowest total execution time: " << lw_ex << std::endl;
+    std::cout << "Lowest total execution time: " << lo_ex << std::endl;
     std::cout << "Average execution time: " << avg_ex << std::endl;
-    std::cout << "Highest total waiting time: " << hi_wt << std::endl;
-    std::cout << "Lowest total waiting time: " << lw_wt << std::endl;
+    std::cout << "Highest total waiting time: " << max_wt << std::endl;
+    std::cout << "Lowest total waiting time: " << min_wt << std::endl;
     std::cout << "Average waiting time: " << avg_wt << std::endl;
     std::cout << "Average active time " << perc_at << std::endl;
-
 }
 
 

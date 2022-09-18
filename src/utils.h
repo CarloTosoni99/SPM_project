@@ -20,7 +20,7 @@ void check_error(int n, std::vector<std::vector<float>> &a, std::vector<float> &
 // This function is used by the program par_jacobi.cpp (barriers) to compute: the time spent to execute subtasks and to
 // wait on the barrier by each thread
 void barrier_elapsed_time(std::vector<time_t> &wait_time, std::vector<time_t> &tot_wait_time,
-                          std::vector<time_t> &tot_ex_time)
+                          std::vector<time_t> &tot_ex_time);
 
 // This function is used by the program par_jacobi.cpp (barriers) to compute: elapsed execution time of the fastest
 // thread, elapsed execution time of the slowest thread, average elapsed execution time of all the threads, maximum
